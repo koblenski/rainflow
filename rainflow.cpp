@@ -1,14 +1,11 @@
 
-#include <cstdlib>
-#include <iostream>
+#include <stdlib.h>
 
 #include <vector>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <conio.h>
-
 
 #include <time.h>
 #include <sys/types.h>
@@ -105,7 +102,7 @@ int main()
 
 	printf("\n Press any key to exit.\n");
 
-	getch();
+	getchar();
 
 	exit(1);
 

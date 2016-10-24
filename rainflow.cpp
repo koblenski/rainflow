@@ -1,5 +1,6 @@
 
 #include <stdlib.h>
+#include <string.h>
 
 #include <math.h>
 #include <stdio.h>
@@ -27,8 +28,6 @@ private:
 
   double L[20];
 
-  double ylast;
-
   float sum;
   float ymax;
 
@@ -50,7 +49,7 @@ private:
 
   int ic, iscale;
 
-  long N, NP;
+  long N;
 
   long last_a;
 
@@ -61,13 +60,24 @@ private:
   vector<vector<float> > B; // need space > >
 
 public:
-  void read_data(void);
+  void read_data(const char * inf);
   void rainflow_engine(void);
   void damage_index(void);
-  void print_data(void);
+  void print_data(const char * outf);
 };
 
-int main() {
+int main(int argc, char * argv[]) {
+  char * outf;
+  if (argc == 1) {
+    printf("Usage: rainflow <input file> [<output file>]\n");
+    exit(0);
+  } else if (argc == 2) {
+    outf = (char *)"rainflow.out";
+  } else {
+    outf = argv[2];
+  }
+  char * inf = argv[1];
+
   Rainflow rf;
 
   printf("\n ");
@@ -77,9 +87,9 @@ int main() {
 
   time_t start = time(0);
 
-  rf.read_data();
+  rf.read_data(inf);
   rf.rainflow_engine();
-  rf.print_data();
+  rf.print_data(outf);
 
   int icd;
   printf("\n\n Calculate relative damage index D?  1=yes 2=no \n");
@@ -101,7 +111,8 @@ int main() {
   exit(1);
 }
 
-void Rainflow::print_data() {
+void Rainflow::print_data(const char * outf) {
+  pFile[1] = fopen(outf, "w");
   printf("\n Amplitude = (peak-valley)/2 \n");
 
   fprintf(pFile[1], "\n Amplitude = (peak-valley)/2 \n");
@@ -131,122 +142,31 @@ void Rainflow::print_data() {
             "  %8.4lf to %8.4lf\t%8.1lf\t%6.4g\t%6.4g\t%6.4g\t %6.4g\t %6.4g\n",
             L[i], L[i + 1], C[i], AverageAmp[i], MaxAmp[i], AverageMean[i],
             MinValley[i], MaxPeak[i]);
-
-    fprintf(pFile[2], " %ld \t %g \n", i, C[i]);
   }
 
   fclose(pFile[0]);
   fclose(pFile[1]);
-  fclose(pFile[2]);
-  fclose(pFile[3]);
-  fclose(pFile[4]);
 
-  printf("\n\n  Total Cycles = %g  hold=%ld  NP=%ld ymax=%g\n", sum, hold, NP,
+  printf("\n\n  Total Cycles = %g  hold=%ld  NP=%ld ymax=%g\n", sum, hold, y.size(),
          ymax);
   fprintf(pFile[1], "\n\n  Total Cycles = %g  hold=%ld  NP=%ld ymax=%g\n", sum,
-          hold, NP, ymax);
-
-  printf("\n\n The output files are: \n");
-
-  printf(" %s \n", filename[1]);
-  printf(" %s \n", filename[2]);
-  printf(" %s \n", filename[3]);
-  printf(" %s \n", filename[4]);
+          hold, y.size(), ymax);
 }
 
-void Rainflow::read_data(void) {
+void Rainflow::read_data(const char * inf) {
   float aa;
 
-  printf("\n The input file must be a time history. \n");
-  printf("\n Select format: ");
-  printf("\n   1=amplitude ");
-  printf("\n   2=time & amplitude \n");
-
-  scanf("%d", &ic);
-
-  if (ic == 1) {
-    printf("\n\n The base input file must contain one column: unit \n");
-  } else {
-    printf("\n\n The base input file must contain two columns: \n");
-    printf(" time & unit    \n");
+  if ((pFile[0] = fopen(inf, "rb")) == NULL) {
+    printf("\n Failed to open file: %s \n", inf);
+    exit(0);
   }
 
-  printf("\n Input filename \n");
-  scanf("%s", filename[0]);
+  while (fscanf(pFile[0], "%f", &aa) > 0) {
+    y.push_back(aa);
 
-  pFile[0] = fopen(filename[0], "rb");
-
-  while (pFile[0] == NULL) {
-
-    printf("\n Failed to open file: %s \n", filename[0]);
-
-    printf("\n Please enter the input filename: \n");
-
-    scanf("%s", filename[0]);
-
-    pFile[0] = fopen(filename[0], "rb");
-  }
-  printf("\n File: %s opened. \n", filename[0]);
-
-  printf("\n\n Enter the output table filename: \n");
-  scanf("%s", filename[1]);
-
-  pFile[1] = fopen(filename[1], "w");
-
-  strcpy(filename[2], "rainflow_graph.out");
-  pFile[2] = fopen(filename[2], "w");
-
-  strcpy(filename[3], "range_cycles.out");
-  pFile[3] = fopen(filename[3], "w");
-
-  strcpy(filename[4], "amp_cycles.out");
-  pFile[4] = fopen(filename[4], "w");
-
-  //    strcpy(filename[5],"points.out");
-  //	pFile[5]=fopen(filename[5], "w");
-
-  i = 0;
-
-  if (ic == 1) {
-    while (fscanf(pFile[0], "%f", &aa) > 0) {
-      y.push_back(aa);
-
-      i++;
-
-      if (i == MAX) {
-        printf("\n Warning:  input data limit reached \n.");
-        break;
-      }
-    }
-  } else {
-    while (fscanf(pFile[0], "%f %f", &t, &aa) > 0) {
-      y.push_back(aa);
-
-      i++;
-
-      if (i == MAX) {
-        printf("\n Warning:  input data limit reached \n.");
-        break;
-      }
-    }
-  }
-  ylast = y[i - 1];
-
-  NP = i + 1;
-
-  //	printf("\n ref 1: last_a = %ld \n",last_a);
-
-  printf("\n ");
-  printf("\n Multiply data by scale factor?");
-  printf("\n 1=yes  2=no \n");
-  scanf("%d", &iscale);
-
-  if (iscale == 1) {
-    printf("\n Enter scale factor \n");
-    scanf("%f", &scale);
-
-    for (i = 0; i < NP; i++) {
-      y[i] *= scale;
+    if (y.size() == MAX) {
+      printf("\n Warning:  input data limit reached \n.");
+      break;
     }
   }
 }
@@ -283,7 +203,7 @@ void Rainflow::rainflow_engine(void) {
 
   k = 1;
 
-  for (i = 1; i < (NP - 1); i++) {
+  for (i = 1; i < (y.size() - 1); i++) {
     slope1 = (y[i] - y[i - 1]);
     slope2 = (y[i + 1] - y[i]);
 
@@ -292,7 +212,7 @@ void Rainflow::rainflow_engine(void) {
       k++;
     }
   }
-  a.push_back(ylast);
+  a.push_back(y.back());
   k++;
 
   last_a = k - 1;
@@ -477,9 +397,6 @@ void Rainflow::rainflow_engine(void) {
     Y = B[i][0];
 
     //        printf(" %ld %ld %10.4e \t %3.1f \n",i,kv,Y,B[i][1]);
-
-    fprintf(pFile[3], " %10.4e \t %3.1f \n", Y, B[i][1]);
-    fprintf(pFile[4], " %10.4e \t %3.1f \n", Y / 2., B[i][1]);
 
     //     printf("i=%d Y=%g \n",i,Y);
 

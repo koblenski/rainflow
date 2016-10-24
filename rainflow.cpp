@@ -1,6 +1,5 @@
 
 #include <stdlib.h>
-#include <string.h>
 
 #include <math.h>
 #include <stdio.h>
@@ -62,7 +61,6 @@ private:
 public:
   void read_data(const char * inf);
   void rainflow_engine(void);
-  void damage_index(void);
   void print_data(const char * outf);
 };
 
@@ -80,10 +78,9 @@ int main(int argc, char * argv[]) {
 
   Rainflow rf;
 
-  printf("\n ");
-  printf("\n rainflow.cpp  ver 2.8  June 24, 2014 \n");
-  printf("\n by Tom Irvine  Email: tom@vibrationdata.com \n");
-  printf("\n ASTM E 1049-85 (2005) Rainflow Counting Method \n");
+  printf("rainflow.cpp  ver 2.8  June 24, 2014 \n");
+  printf("by Tom Irvine  Email: tom@vibrationdata.com \n");
+  printf("ASTM E 1049-85 (2005) Rainflow Counting Method \n");
 
   time_t start = time(0);
 
@@ -91,46 +88,16 @@ int main(int argc, char * argv[]) {
   rf.rainflow_engine();
   rf.print_data(outf);
 
-  int icd;
-  printf("\n\n Calculate relative damage index D?  1=yes 2=no \n");
-  scanf("%d", &icd);
-
-  if (icd == 1) {
-    rf.damage_index();
-  }
-
   time_t end = time(0);
   double time = difftime(end, start);
 
-  printf("\n Elapsed Time = %8.4g sec \n", time);
-
-  printf("\n Press any key to exit.\n");
-
-  getchar();
-
-  exit(1);
+  printf("Elapsed Time = %8.4g sec \n", time);
 }
 
 void Rainflow::print_data(const char * outf) {
   pFile[1] = fopen(outf, "w");
-  printf("\n Amplitude = (peak-valley)/2 \n");
 
   fprintf(pFile[1], "\n Amplitude = (peak-valley)/2 \n");
-
-  //*****************************************************************************
-
-  printf("\n ");
-  printf("\n          Range            Cycle       Ave      Max     Ave     "
-         "Min       Max");
-  printf("\n         (units)           Counts      Amp      Amp     Mean    "
-         "Valley    Peak \n");
-
-  for (i = 13; i >= 1; i--) {
-    printf("  %8.2lf to %8.2lf\t%8.1lf\t%6.4g\t%6.4g\t%6.4g\t%6.4g\t %6.4g\n",
-           L[i], L[i + 1], C[i], AverageAmp[i], MaxAmp[i], AverageMean[i],
-           MinValley[i], MaxPeak[i]);
-  }
-
   fprintf(pFile[1], "\n ");
   fprintf(pFile[1], "\n          Range            Cycle       Ave     Max     "
                     "Ave     Min      Max");
@@ -144,13 +111,10 @@ void Rainflow::print_data(const char * outf) {
             MinValley[i], MaxPeak[i]);
   }
 
-  fclose(pFile[0]);
   fclose(pFile[1]);
 
   printf("\n\n  Total Cycles = %g  hold=%ld  NP=%ld ymax=%g\n", sum, hold, y.size(),
          ymax);
-  fprintf(pFile[1], "\n\n  Total Cycles = %g  hold=%ld  NP=%ld ymax=%g\n", sum,
-          hold, y.size(), ymax);
 }
 
 void Rainflow::read_data(const char * inf) {
@@ -169,21 +133,8 @@ void Rainflow::read_data(const char * inf) {
       break;
     }
   }
-}
 
-void Rainflow::damage_index(void) {
-  double b;
-  double D = 0;
-  double Y;
-
-  printf("\n\n Enter fatigue exponent: ");
-  scanf("%lf", &b);
-
-  for (long i = 0; i <= kv; i++) {
-    Y = B[i][0];
-    D += B[i][1] * pow((Y / 2.), b);
-  }
-  printf("\n D=%8.4g \n", D);
+  fclose(pFile[0]);
 }
 
 void Rainflow::rainflow_engine(void) {

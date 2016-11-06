@@ -41,7 +41,7 @@ private:
   long kv;
 
   long hold;
-  long i, j, k, n;
+  long j, n;
   long num;
 
   long nkv;
@@ -60,7 +60,8 @@ private:
 
 public:
   void read_data(const char * inf);
-  void rainflow_engine(void);
+  void calculate(void);
+  void find_peaks(vector<float> * peaks);
   void print_data(const char * outf);
 };
 
@@ -85,7 +86,7 @@ int main(int argc, char * argv[]) {
   time_t start = time(0);
 
   rf.read_data(inf);
-  rf.rainflow_engine();
+  rf.calculate();
   rf.print_data(outf);
 
   time_t end = time(0);
@@ -104,7 +105,7 @@ void Rainflow::print_data(const char * outf) {
   fprintf(pFile[1], "\n         (units)           Counts      Amp     Amp     "
                     "Mean    Valley   Peak \n");
 
-  for (i = 13; i >= 1; i--) {
+  for (unsigned i = 13; i >= 1; i--) {
     fprintf(pFile[1],
             "  %8.4lf to %8.4lf\t%8.1lf\t%6.4g\t%6.4g\t%6.4g\t %6.4g\t %6.4g\n",
             L[i], L[i + 1], C[i], AverageAmp[i], MaxAmp[i], AverageMean[i],
@@ -137,36 +138,26 @@ void Rainflow::read_data(const char * inf) {
   fclose(pFile[0]);
 }
 
-void Rainflow::rainflow_engine(void) {
+void Rainflow::find_peaks(vector<float> *peaks) {
+  peaks->push_back(y[0]);
 
-  vector<float> a;
-
-  double slope1;
-  double slope2;
-
-  ymax = 0.;
-
-  nkv = 0;
-
-  k = 0;
-  //	a[k]=y[k];
-  a.push_back(y[k]);
-
-  k = 1;
-
+  unsigned i;
   for (i = 1; i < (y.size() - 1); i++) {
-    slope1 = (y[i] - y[i - 1]);
-    slope2 = (y[i + 1] - y[i]);
+    double slope1 = (y[i] - y[i - 1]);
+    double slope2 = (y[i + 1] - y[i]);
 
     if ((slope1 * slope2) <= 0. && fabs(slope1) > 0.) {
-      a.push_back(y[i]);
-      k++;
+      peaks->push_back(y[i]);
     }
   }
-  a.push_back(y.back());
-  k++;
+  peaks->push_back(y.back());
+}
 
-  last_a = k - 1;
+void Rainflow::calculate(void) {
+  vector<float> peaks;
+  find_peaks(&peaks);
+
+  last_a = peaks.size() - 1;
 
   hold = last_a;
 
@@ -174,6 +165,7 @@ void Rainflow::rainflow_engine(void) {
   long HEIGHT = 0;
   B.resize(HEIGHT);
 
+  unsigned i;
   for (i = 0; i < HEIGHT; i++) {
     B[i].resize(WIDTH);
   }
@@ -185,11 +177,11 @@ void Rainflow::rainflow_engine(void) {
   maxa = -mina;
 
   for (i = 0; i <= last_a; i++) {
-    if (a[i] < mina) {
-      mina = a[i];
+    if (peaks[i] < mina) {
+      mina = peaks[i];
     }
-    if (a[i] > maxa) {
-      maxa = a[i];
+    if (peaks[i] > maxa) {
+      maxa = peaks[i];
     }
 
     //		fprintf(pFile[5]," %8.4g \n",a[i]);
@@ -211,9 +203,11 @@ void Rainflow::rainflow_engine(void) {
 
   printf("\n percent completed \n");
 
+  ymax = 0.;
+  nkv = 0;
   while (1) {
-    Y = (fabs(a[i] - a[i + 1]));
-    X = (fabs(a[j] - a[j + 1]));
+    Y = (fabs(peaks[i] - peaks[i + 1]));
+    X = (fabs(peaks[j] - peaks[j + 1]));
 
     if (X >= Y && Y > 0 && Y < 1.0e+20) {
       if (Y > ymax) {
@@ -225,8 +219,8 @@ void Rainflow::rainflow_engine(void) {
         n = 0;
         sum += 0.5;
 
-        row[3] = a[i + 1];
-        row[2] = a[i];
+        row[3] = peaks[i + 1];
+        row[2] = peaks[i];
         row[1] = 0.5;
         row[0] = Y;
 
@@ -237,7 +231,7 @@ void Rainflow::rainflow_engine(void) {
 
         kv++;
 
-        a.erase(a.begin());
+        peaks.erase(peaks.begin());
 
         last_a--;
 
@@ -246,8 +240,8 @@ void Rainflow::rainflow_engine(void) {
       } else {
         sum += 1;
 
-        row[3] = a[i + 1];
-        row[2] = a[i];
+        row[3] = peaks[i + 1];
+        row[2] = peaks[i];
         row[1] = 1.;
         row[0] = Y;
 
@@ -259,8 +253,8 @@ void Rainflow::rainflow_engine(void) {
 
         n = 0;
 
-        a.erase(a.begin() + (i + 1));
-        a.erase(a.begin() + i);
+        peaks.erase(peaks.begin() + (i + 1));
+        peaks.erase(peaks.begin() + i);
 
         last_a -= 2;
 
@@ -287,12 +281,12 @@ void Rainflow::rainflow_engine(void) {
   }
 
   for (i = 0; i < (last_a); i++) {
-    Y = (fabs(a[i] - a[i + 1]));
+    Y = (fabs(peaks[i] - peaks[i + 1]));
     if (Y > 0. && Y < 1.0e+20) {
       sum += 0.5;
 
-      row[3] = a[i + 1];
-      row[2] = a[i];
+      row[3] = peaks[i + 1];
+      row[2] = peaks[i];
       row[1] = 0.5;
       row[0] = Y;
       B.push_back(row);

@@ -27,30 +27,15 @@ private:
 
   double L[20];
 
-  float sum;
-  float ymax;
-
-  float mina, maxa;
-
   float t;
   float scale;
   float X, Y;
 
   long ijk;
 
-  long kv;
-
-  long hold;
-  long j, n;
-  long num;
-
-  long nkv;
-
   int ic, iscale;
 
   long N;
-
-  long last_a;
 
   FILE *pFile[6];
   char filename[6][FILENAME_MAX];
@@ -113,9 +98,6 @@ void Rainflow::print_data(const char * outf) {
   }
 
   fclose(pFile[1]);
-
-  printf("\n\n  Total Cycles = %g  hold=%ld  NP=%ld ymax=%g\n", sum, hold, y.size(),
-         ymax);
 }
 
 void Rainflow::read_data(const char * inf) {
@@ -157,67 +139,25 @@ void Rainflow::calculate(void) {
   vector<float> peaks;
   find_peaks(&peaks);
 
-  last_a = peaks.size() - 1;
+  unsigned i = 0;
 
-  hold = last_a;
-
-  long WIDTH = 4;
-  long HEIGHT = 0;
-  B.resize(HEIGHT);
-
-  unsigned i;
-  for (i = 0; i < HEIGHT; i++) {
-    B[i].resize(WIDTH);
-  }
-
-  //   printf(" H=%ld W=%ld ",HEIGHT,WIDTH);
-  //   getch();
-
-  mina = 100000;
-  maxa = -mina;
-
-  for (i = 0; i <= last_a; i++) {
-    if (peaks[i] < mina) {
-      mina = peaks[i];
-    }
-    if (peaks[i] > maxa) {
-      maxa = peaks[i];
-    }
-
-    //		fprintf(pFile[5]," %8.4g \n",a[i]);
-  }
-
-  num = long(maxa - mina) + 1;
-
-  n = 0;
-  i = 0;
-  j = 1;
-
-  sum = 0;
-
-  kv = 0;
-
-  long LLL = last_a;
+  float total_cycles = 0.;
+  float max_cycle_amplitude = 0.;
 
   std::vector<float> row(4);
 
-  printf("\n percent completed \n");
-
-  ymax = 0.;
-  nkv = 0;
-  while (1) {
+  while ((i + 2) < peaks.size()) {
     Y = (fabs(peaks[i] - peaks[i + 1]));
-    X = (fabs(peaks[j] - peaks[j + 1]));
+    X = (fabs(peaks[i + 1] - peaks[i + 2]));
 
     if (X >= Y && Y > 0 && Y < 1.0e+20) {
-      if (Y > ymax) {
-        ymax = Y;
+      if (Y > max_cycle_amplitude) {
+        max_cycle_amplitude = Y;
       }
 
       if (i == 0) {
 
-        n = 0;
-        sum += 0.5;
+        total_cycles += 0.5;
 
         row[3] = peaks[i + 1];
         row[2] = peaks[i];
@@ -229,16 +169,11 @@ void Rainflow::calculate(void) {
         //                printf("1 %8.4g %8.4g %8.4g %8.4g
         //                \n",B[kv][0],B[kv][1],B[kv][2],B[kv][3]);
 
-        kv++;
-
         peaks.erase(peaks.begin());
 
-        last_a--;
-
         i = 0;
-        j = 1;
       } else {
-        sum += 1;
+        total_cycles += 1;
 
         row[3] = peaks[i + 1];
         row[2] = peaks[i];
@@ -249,41 +184,20 @@ void Rainflow::calculate(void) {
         //                printf("2 %8.4g %8.4g %8.4g %8.4g
         //                \n",B[kv][0],B[kv][1],B[kv][2],B[kv][3]);
 
-        kv++;
-
-        n = 0;
-
         peaks.erase(peaks.begin() + (i + 1));
         peaks.erase(peaks.begin() + i);
 
-        last_a -= 2;
-
         i = 0;
-        j = 1;
-      }
-
-      nkv++;
-
-      if (nkv == 3000) {
-        double ratio = fabs((last_a) / double(LLL));
-
-        printf(" %3.1lf \n", (1 - ratio) * 100.);
-        nkv = 0;
       }
     } else {
       i++;
-      j++;
-    }
-
-    if ((j + 1) > last_a) {
-      break;
     }
   }
 
-  for (i = 0; i < (last_a); i++) {
+  for (i = 0; i < peaks.size(); i++) {
     Y = (fabs(peaks[i] - peaks[i + 1]));
     if (Y > 0. && Y < 1.0e+20) {
-      sum += 0.5;
+      total_cycles += 0.5;
 
       row[3] = peaks[i + 1];
       row[2] = peaks[i];
@@ -293,10 +207,8 @@ void Rainflow::calculate(void) {
       //            printf("3  %8.4g %8.4g %8.4g %8.4g
       //            \n",B[kv][0],B[kv][1],B[kv][2],B[kv][3]);
 
-      kv++;
-
-      if (Y > ymax) {
-        ymax = Y;
+      if (Y > max_cycle_amplitude) {
+        max_cycle_amplitude = Y;
       }
     }
   }
@@ -317,7 +229,7 @@ void Rainflow::calculate(void) {
   L[14] = 100;
 
   for (ijk = 1; ijk <= 14; ijk++) {
-    L[ijk] *= ymax / 100.;
+    L[ijk] *= max_cycle_amplitude / 100.;
 
     C[ijk] = 0.;
     AverageMean[ijk] = 0.;
@@ -327,18 +239,16 @@ void Rainflow::calculate(void) {
     MaxAmp[ijk] = -1.0e+20;
     AverageAmp[ijk] = 1.0e+20;
 
-    //       printf("  L[%ld]=%g ymax=%8.4g\n",ijk,L[ijk],ymax);
+    //       printf("  L[%ld]=%g max_cycle_amplitude=%8.4g\n",ijk,L[ijk],max_cycle_amplitude);
   }
 
   //   getch();
-
-  kv--;
 
   for (ijk = 13; ijk >= 0; ijk--) {
     AverageAmp[ijk] = 0.;
   }
 
-  for (i = 0; i <= kv; i++) {
+  for (i = 0; i < B.size(); i++) {
     Y = B[i][0];
 
     //        printf(" %ld %ld %10.4e \t %3.1f \n",i,kv,Y,B[i][1]);
@@ -395,4 +305,6 @@ void Rainflow::calculate(void) {
     //        printf(" %8.4g  %8.4g  %8.4g  %8.4g  %8.4g
     //        \n",AverageAmp[ijk],MaxAmp[ijk],AverageMean[ijk],MinValley[ijk],MaxPeak[ijk]);
   }
+
+  printf("\n\n  Total Cycles = %g  NP=%ld max_cycle_amplitude=%g\n", total_cycles, y.size(), max_cycle_amplitude);
 }

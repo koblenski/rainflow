@@ -15,6 +15,13 @@
 
 using namespace std;
 
+typedef struct Cycle {
+  float peak1;
+  float peak2;
+  float size;
+  float amplitude;
+} Cycle;
+
 class Rainflow {
 private:
   float C[100];
@@ -29,7 +36,6 @@ private:
 
   float t;
   float scale;
-  float X, Y;
 
   long ijk;
 
@@ -41,12 +47,12 @@ private:
   char filename[6][FILENAME_MAX];
 
   vector<float> y;
-  vector<vector<float> > B; // need space > >
 
+  void find_peaks(vector<float> * peaks);
+  void find_cycles(vector<float> &peaks, vector<Cycle> * cycles);
 public:
   void read_data(const char * inf);
   void calculate(void);
-  void find_peaks(vector<float> * peaks);
   void print_data(const char * outf);
 };
 
@@ -135,82 +141,60 @@ void Rainflow::find_peaks(vector<float> *peaks) {
   peaks->push_back(y.back());
 }
 
-void Rainflow::calculate(void) {
-  vector<float> peaks;
-  find_peaks(&peaks);
-
+void Rainflow::find_cycles(vector<float> &peaks, vector<Cycle> * cycles) {
   unsigned i = 0;
-
-  float total_cycles = 0.;
-  float max_cycle_amplitude = 0.;
-
-  std::vector<float> row(4);
-
+  Cycle cycle;
   while ((i + 2) < peaks.size()) {
-    Y = (fabs(peaks[i] - peaks[i + 1]));
-    X = (fabs(peaks[i + 1] - peaks[i + 2]));
+    float delta1 = (fabs(peaks[i] - peaks[i + 1]));
+    float delta2 = (fabs(peaks[i + 1] - peaks[i + 2]));
 
-    if (X >= Y && Y > 0 && Y < 1.0e+20) {
-      if (Y > max_cycle_amplitude) {
-        max_cycle_amplitude = Y;
-      }
+    if (delta2 >= delta1 && delta1 > 0 && delta1 < 1.0e+20) {
+      cycle.peak1 = peaks[i];
+      cycle.peak2 = peaks[i + 1];
+      cycle.size = (i == 0) ? 0.5 : 1.0;
+      cycle.amplitude = delta1;
 
-      if (i == 0) {
+      cycles->push_back(cycle);
 
-        total_cycles += 0.5;
-
-        row[3] = peaks[i + 1];
-        row[2] = peaks[i];
-        row[1] = 0.5;
-        row[0] = Y;
-
-        B.push_back(row);
-
-        //                printf("1 %8.4g %8.4g %8.4g %8.4g
-        //                \n",B[kv][0],B[kv][1],B[kv][2],B[kv][3]);
-
-        peaks.erase(peaks.begin());
-
-        i = 0;
-      } else {
-        total_cycles += 1;
-
-        row[3] = peaks[i + 1];
-        row[2] = peaks[i];
-        row[1] = 1.;
-        row[0] = Y;
-
-        B.push_back(row);
-        //                printf("2 %8.4g %8.4g %8.4g %8.4g
-        //                \n",B[kv][0],B[kv][1],B[kv][2],B[kv][3]);
-
-        peaks.erase(peaks.begin() + (i + 1));
+      peaks.erase(peaks.begin() + i);
+      if (i != 0) {
         peaks.erase(peaks.begin() + i);
-
-        i = 0;
       }
+
+      i = 0;
     } else {
       i++;
     }
   }
 
   for (i = 0; i < peaks.size(); i++) {
-    Y = (fabs(peaks[i] - peaks[i + 1]));
-    if (Y > 0. && Y < 1.0e+20) {
-      total_cycles += 0.5;
-
-      row[3] = peaks[i + 1];
-      row[2] = peaks[i];
-      row[1] = 0.5;
-      row[0] = Y;
-      B.push_back(row);
-      //            printf("3  %8.4g %8.4g %8.4g %8.4g
-      //            \n",B[kv][0],B[kv][1],B[kv][2],B[kv][3]);
-
-      if (Y > max_cycle_amplitude) {
-        max_cycle_amplitude = Y;
-      }
+    float delta = (fabs(peaks[i] - peaks[i + 1]));
+    if (delta > 0. && delta < 1.0e+20) {
+      cycle.peak1 = peaks[i];
+      cycle.peak2 = peaks[i + 1];
+      cycle.size = 0.5;
+      cycle.amplitude = delta;
+      cycles->push_back(cycle);
     }
+  }
+}
+
+void Rainflow::calculate(void) {
+  vector<float> peaks;
+  find_peaks(&peaks);
+
+  vector<Cycle> cycles;
+  find_cycles(peaks, &cycles);
+
+  unsigned i = 0;
+  float max_cycle_amplitude = 0.;
+  float total_cycles = 0.;
+  for (i = 0; i < cycles.size(); i++) {
+    float amplitude = cycles[i].amplitude;
+    if (amplitude > max_cycle_amplitude) {
+      max_cycle_amplitude = amplitude;
+    }
+    total_cycles += cycles[i].size;
   }
 
   L[1] = 0;
@@ -248,40 +232,40 @@ void Rainflow::calculate(void) {
     AverageAmp[ijk] = 0.;
   }
 
-  for (i = 0; i < B.size(); i++) {
-    Y = B[i][0];
+  for (i = 0; i < cycles.size(); i++) {
+    float amplitude = cycles[i].amplitude;
 
-    //        printf(" %ld %ld %10.4e \t %3.1f \n",i,kv,Y,B[i][1]);
+    //        printf(" %ld %ld %10.4e \t %3.1f \n",i,kv,delta1,cycles[i][1]);
 
-    //     printf("i=%d Y=%g \n",i,Y);
+    //     printf("i=%d delta1=%g \n",i,Y);
 
     for (ijk = 13; ijk >= 0; ijk--) {
-      //           printf(" %8.4g  %8.4g   %8.4g \n",Y,L[ijk],L[ijk+1]);
+      //           printf(" %8.4g  %8.4g   %8.4g \n",delta1,L[ijk],L[ijk+1]);
 
-      if (Y >= L[ijk] && Y <= L[ijk + 1]) {
-        C[ijk] = C[ijk] + B[i][1];
+      if (amplitude >= L[ijk] && amplitude <= L[ijk + 1]) {
+        C[ijk] = C[ijk] + cycles[i].size;
         AverageMean[ijk] +=
-            B[i][1] * (B[i][3] + B[i][2]) * 0.5; // weighted average
+            cycles[i].size * (cycles[i].peak1 + cycles[i].peak2) * 0.5; // weighted average
 
-        if (B[i][3] > MaxPeak[ijk]) {
-          MaxPeak[ijk] = B[i][3];
+        if (cycles[i].peak1 > MaxPeak[ijk]) {
+          MaxPeak[ijk] = cycles[i].peak1;
         }
-        if (B[i][2] > MaxPeak[ijk]) {
-          MaxPeak[ijk] = B[i][2];
-        }
-
-        if (B[i][3] < MinValley[ijk]) {
-          MinValley[ijk] = B[i][3];
-        }
-        if (B[i][2] < MinValley[ijk]) {
-          MinValley[ijk] = B[i][2];
+        if (cycles[i].peak2 > MaxPeak[ijk]) {
+          MaxPeak[ijk] = cycles[i].peak2;
         }
 
-        if (Y > MaxAmp[ijk]) {
-          MaxAmp[ijk] = Y;
+        if (cycles[i].peak1 < MinValley[ijk]) {
+          MinValley[ijk] = cycles[i].peak1;
+        }
+        if (cycles[i].peak2 < MinValley[ijk]) {
+          MinValley[ijk] = cycles[i].peak2;
         }
 
-        AverageAmp[ijk] += B[i][1] * Y * 0.5;
+        if (amplitude > MaxAmp[ijk]) {
+          MaxAmp[ijk] = amplitude;
+        }
+
+        AverageAmp[ijk] += cycles[i].size * amplitude * 0.5;
 
         break;
       }

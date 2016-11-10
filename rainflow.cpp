@@ -24,15 +24,15 @@ typedef struct Cycle {
 
 class Rainflow {
 private:
-  float C[100];
-  float AverageMean[100];
-  float MaxPeak[100];
-  float MinValley[100];
+  vector<float> _cycle_counts;
+  vector<float> _average_means;
+  vector<float> _max_peaks;
+  vector<float> _min_valleys;
 
-  float MaxAmp[100];
-  float AverageAmp[100];
+  vector<float> _max_amps;
+  vector<float> _average_amps;
 
-  double L[20];
+  vector<double> _bins;
 
   float t;
   float scale;
@@ -50,6 +50,7 @@ private:
 
   void find_peaks(vector<float> * peaks);
   void find_cycles(vector<float> &peaks, vector<Cycle> * cycles);
+  void calculate_statistics(vector<Cycle> const &cycles);
 public:
   void read_data(const char * inf);
   void calculate(void);
@@ -96,11 +97,11 @@ void Rainflow::print_data(const char * outf) {
   fprintf(pFile[1], "\n         (units)           Counts      Amp     Amp     "
                     "Mean    Valley   Peak \n");
 
-  for (unsigned i = 13; i >= 1; i--) {
+  for (int i = 12; i >= 0; i--) {
     fprintf(pFile[1],
             "  %8.4lf to %8.4lf\t%8.1lf\t%6.4g\t%6.4g\t%6.4g\t %6.4g\t %6.4g\n",
-            L[i], L[i + 1], C[i], AverageAmp[i], MaxAmp[i], AverageMean[i],
-            MinValley[i], MaxPeak[i]);
+            _bins[i], _bins[i + 1], _cycle_counts[i], _average_amps[i], _max_amps[i], _average_means[i],
+            _min_valleys[i], _max_peaks[i]);
   }
 
   fclose(pFile[1]);
@@ -179,6 +180,68 @@ void Rainflow::find_cycles(vector<float> &peaks, vector<Cycle> * cycles) {
   }
 }
 
+void Rainflow::calculate_statistics(vector<Cycle> const &cycles) {
+  unsigned i = 0;
+  float max_cycle_amplitude = 0.;
+  float total_cycles = 0.;
+  for (i = 0; i < cycles.size(); i++) {
+    max_cycle_amplitude = max(max_cycle_amplitude, cycles[i].amplitude);
+    total_cycles += cycles[i].size;
+  }
+
+  double bin_percentages[] = {0, 2.5, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100};
+  size_t bin_count = sizeof(bin_percentages)/sizeof(bin_percentages[0]);
+  _bins.resize(bin_count);
+  for (i = 0; i < 14; i++) {
+    _bins[i] = bin_percentages[i] * max_cycle_amplitude / 100.;
+  }
+
+  _cycle_counts.assign(bin_count, 0.);
+  _average_means.assign(bin_count, 0.);
+  _max_peaks.assign(bin_count, -1.0e+20);
+  _min_valleys.assign(bin_count, 1.0e+20);
+  _max_amps.assign(bin_count, -1.0e+20);
+  _average_amps.assign(bin_count, 0.);
+
+  for (i = 0; i < cycles.size(); i++) {
+    float amplitude = cycles[i].amplitude;
+
+    for (unsigned j = 0; j < 13; j++) {
+      if (amplitude >= _bins[j] && amplitude <= _bins[j + 1]) {
+        _cycle_counts[j] += cycles[i].size;
+        _average_means[j] +=
+            cycles[i].size * (cycles[i].peak1 + cycles[i].peak2) * 0.5; // weighted average
+
+        _max_peaks[j] = max( max(cycles[i].peak1, cycles[i].peak2), _max_peaks[j] );
+        _min_valleys[j] = min( min(cycles[i].peak1, cycles[i].peak2), _min_valleys[j] );
+        _max_amps[j] = max(_max_amps[j], amplitude);
+
+        _average_amps[j] += cycles[i].size * amplitude * 0.5;
+
+        break;
+      }
+    }
+  }
+
+  for (i = 0; i < 13; i++) {
+    if (_cycle_counts[i] > 0) {
+      _average_means[i] /= _cycle_counts[i];
+      _average_amps[i] /= _cycle_counts[i];
+    }
+    _max_amps[i] /= 2.;
+
+    if (_cycle_counts[i] < 0.5) {
+      _average_amps[i] = 0.;
+      _max_amps[i] = 0.;
+      _average_means[i] = 0.;
+      _min_valleys[i] = 0.;
+      _max_peaks[i] = 0.;
+    }
+  }
+
+  printf("\n\n  Total Cycles = %g  NP=%ld max_cycle_amplitude=%g\n", total_cycles, y.size(), max_cycle_amplitude);
+}
+
 void Rainflow::calculate(void) {
   vector<float> peaks;
   find_peaks(&peaks);
@@ -186,109 +249,5 @@ void Rainflow::calculate(void) {
   vector<Cycle> cycles;
   find_cycles(peaks, &cycles);
 
-  unsigned i = 0;
-  float max_cycle_amplitude = 0.;
-  float total_cycles = 0.;
-  for (i = 0; i < cycles.size(); i++) {
-    float amplitude = cycles[i].amplitude;
-    if (amplitude > max_cycle_amplitude) {
-      max_cycle_amplitude = amplitude;
-    }
-    total_cycles += cycles[i].size;
-  }
-
-  L[1] = 0;
-  L[2] = 2.5;
-  L[3] = 5;
-  L[4] = 10;
-  L[5] = 15;
-  L[6] = 20;
-  L[7] = 30;
-  L[8] = 40;
-  L[9] = 50;
-  L[10] = 60;
-  L[11] = 70;
-  L[12] = 80;
-  L[13] = 90;
-  L[14] = 100;
-
-  for (ijk = 1; ijk <= 14; ijk++) {
-    L[ijk] *= max_cycle_amplitude / 100.;
-
-    C[ijk] = 0.;
-    AverageMean[ijk] = 0.;
-    MaxPeak[ijk] = -1.0e+20;
-    MinValley[ijk] = 1.0e+20;
-
-    MaxAmp[ijk] = -1.0e+20;
-    AverageAmp[ijk] = 1.0e+20;
-
-    //       printf("  L[%ld]=%g max_cycle_amplitude=%8.4g\n",ijk,L[ijk],max_cycle_amplitude);
-  }
-
-  //   getch();
-
-  for (ijk = 13; ijk >= 0; ijk--) {
-    AverageAmp[ijk] = 0.;
-  }
-
-  for (i = 0; i < cycles.size(); i++) {
-    float amplitude = cycles[i].amplitude;
-
-    //        printf(" %ld %ld %10.4e \t %3.1f \n",i,kv,delta1,cycles[i][1]);
-
-    //     printf("i=%d delta1=%g \n",i,Y);
-
-    for (ijk = 13; ijk >= 0; ijk--) {
-      //           printf(" %8.4g  %8.4g   %8.4g \n",delta1,L[ijk],L[ijk+1]);
-
-      if (amplitude >= L[ijk] && amplitude <= L[ijk + 1]) {
-        C[ijk] = C[ijk] + cycles[i].size;
-        AverageMean[ijk] +=
-            cycles[i].size * (cycles[i].peak1 + cycles[i].peak2) * 0.5; // weighted average
-
-        if (cycles[i].peak1 > MaxPeak[ijk]) {
-          MaxPeak[ijk] = cycles[i].peak1;
-        }
-        if (cycles[i].peak2 > MaxPeak[ijk]) {
-          MaxPeak[ijk] = cycles[i].peak2;
-        }
-
-        if (cycles[i].peak1 < MinValley[ijk]) {
-          MinValley[ijk] = cycles[i].peak1;
-        }
-        if (cycles[i].peak2 < MinValley[ijk]) {
-          MinValley[ijk] = cycles[i].peak2;
-        }
-
-        if (amplitude > MaxAmp[ijk]) {
-          MaxAmp[ijk] = amplitude;
-        }
-
-        AverageAmp[ijk] += cycles[i].size * amplitude * 0.5;
-
-        break;
-      }
-    }
-  }
-
-  for (ijk = 1; ijk <= 14; ijk++) {
-    if (C[ijk] > 0) {
-      AverageMean[ijk] /= C[ijk];
-      AverageAmp[ijk] /= C[ijk];
-    }
-    MaxAmp[ijk] /= 2.;
-
-    if (C[ijk] < 0.5) {
-      AverageAmp[ijk] = 0.;
-      MaxAmp[ijk] = 0.;
-      AverageMean[ijk] = 0.;
-      MinValley[ijk] = 0.;
-      MaxPeak[ijk] = 0.;
-    }
-    //        printf(" %8.4g  %8.4g  %8.4g  %8.4g  %8.4g
-    //        \n",AverageAmp[ijk],MaxAmp[ijk],AverageMean[ijk],MinValley[ijk],MaxPeak[ijk]);
-  }
-
-  printf("\n\n  Total Cycles = %g  NP=%ld max_cycle_amplitude=%g\n", total_cycles, y.size(), max_cycle_amplitude);
+  calculate_statistics(cycles);
 }

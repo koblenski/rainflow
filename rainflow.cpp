@@ -1,4 +1,3 @@
-
 #include <stdlib.h>
 
 #include <math.h>
@@ -24,6 +23,9 @@ typedef struct Cycle {
 
 class Rainflow {
 private:
+  vector<double> _bins;
+  vector<float> _points;
+
   vector<float> _cycle_counts;
   vector<float> _average_means;
   vector<float> _max_peaks;
@@ -31,22 +33,6 @@ private:
 
   vector<float> _max_amps;
   vector<float> _average_amps;
-
-  vector<double> _bins;
-
-  float t;
-  float scale;
-
-  long ijk;
-
-  int ic, iscale;
-
-  long N;
-
-  FILE *pFile[6];
-  char filename[6][FILENAME_MAX];
-
-  vector<float> y;
 
   void find_peaks(vector<float> * peaks);
   void find_cycles(vector<float> &peaks, vector<Cycle> * cycles);
@@ -88,58 +74,59 @@ int main(int argc, char * argv[]) {
 }
 
 void Rainflow::print_data(const char * outf) {
-  pFile[1] = fopen(outf, "w");
+  FILE *fp = fopen(outf, "w");
 
-  fprintf(pFile[1], "\n Amplitude = (peak-valley)/2 \n");
-  fprintf(pFile[1], "\n ");
-  fprintf(pFile[1], "\n          Range            Cycle       Ave     Max     "
+  fprintf(fp, "\n Amplitude = (peak-valley)/2 \n");
+  fprintf(fp, "\n ");
+  fprintf(fp, "\n          Range            Cycle       Ave     Max     "
                     "Ave     Min      Max");
-  fprintf(pFile[1], "\n         (units)           Counts      Amp     Amp     "
+  fprintf(fp, "\n         (units)           Counts      Amp     Amp     "
                     "Mean    Valley   Peak \n");
 
   for (int i = 12; i >= 0; i--) {
-    fprintf(pFile[1],
+    fprintf(fp,
             "  %8.4lf to %8.4lf\t%8.1lf\t%6.4g\t%6.4g\t%6.4g\t %6.4g\t %6.4g\n",
             _bins[i], _bins[i + 1], _cycle_counts[i], _average_amps[i], _max_amps[i], _average_means[i],
             _min_valleys[i], _max_peaks[i]);
   }
 
-  fclose(pFile[1]);
+  fclose(fp);
 }
 
 void Rainflow::read_data(const char * inf) {
-  float aa;
+  float point;
+  FILE *fp;
 
-  if ((pFile[0] = fopen(inf, "rb")) == NULL) {
+  if ((fp = fopen(inf, "rb")) == NULL) {
     printf("\n Failed to open file: %s \n", inf);
     exit(0);
   }
 
-  while (fscanf(pFile[0], "%f", &aa) > 0) {
-    y.push_back(aa);
+  while (fscanf(fp, "%f", &point) > 0) {
+    _points.push_back(point);
 
-    if (y.size() == MAX) {
+    if (_points.size() == MAX) {
       printf("\n Warning:  input data limit reached \n.");
       break;
     }
   }
 
-  fclose(pFile[0]);
+  fclose(fp);
 }
 
 void Rainflow::find_peaks(vector<float> *peaks) {
-  peaks->push_back(y[0]);
+  peaks->push_back(_points[0]);
 
   unsigned i;
-  for (i = 1; i < (y.size() - 1); i++) {
-    double slope1 = (y[i] - y[i - 1]);
-    double slope2 = (y[i + 1] - y[i]);
+  for (i = 1; i < (_points.size() - 1); i++) {
+    double slope1 = _points[i] - _points[i - 1];
+    double slope2 = _points[i + 1] - _points[i];
 
     if ((slope1 * slope2) <= 0. && fabs(slope1) > 0.) {
-      peaks->push_back(y[i]);
+      peaks->push_back(_points[i]);
     }
   }
-  peaks->push_back(y.back());
+  peaks->push_back(_points.back());
 }
 
 void Rainflow::find_cycles(vector<float> &peaks, vector<Cycle> * cycles) {
@@ -239,7 +226,7 @@ void Rainflow::calculate_statistics(vector<Cycle> const &cycles) {
     }
   }
 
-  printf("\n\n  Total Cycles = %g  NP=%ld max_cycle_amplitude=%g\n", total_cycles, y.size(), max_cycle_amplitude);
+  printf("\n\n  Total Cycles = %g  NP=%ld max_cycle_amplitude=%g\n", total_cycles, _points.size(), max_cycle_amplitude);
 }
 
 void Rainflow::calculate(void) {

@@ -1,14 +1,15 @@
-#include <stdlib.h>
+#include <cstdlib>
 
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <vector>
-
+#include <array>
+#include <cfloat>
 #include <sys/timeb.h>
 #include <sys/types.h>
-#include <time.h>
+#include <ctime>
 
 #define MAX 51000000
 
@@ -229,7 +230,7 @@ void Rainflow::calculate_statistics(vector<Cycle> const &cycles) {
     }
 
     // This print should go ouside the computing member functions.
-    printf("\n\n  Total Cycles = %g  NP=%u max_cycle_amplitude=%g\n",
+    printf("\n\n  Total Cycles = %g  NP=%lu max_cycle_amplitude=%g\n",
            total_cycles, _points.size(), max_cycle_amplitude);
 }
 
